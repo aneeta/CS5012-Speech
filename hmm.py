@@ -3,6 +3,12 @@ from typing import Tuple
 import nltk
 import numpy as np
 
+SMOOTHING = {
+    "WB": nltk.WittenBellProbDist,
+    "GT": nltk.SimpleGoodTuringProbDist,
+    "KN": nltk.KneserNeyProbDist
+}
+
 
 class HiddenMarkovModel:
 
@@ -22,8 +28,8 @@ class HiddenMarkovModel:
     # fit
     # TODO make invariant to the number of passed features!!!!
     def estimate_parameters(self,
-                            X: list[list[dict]],
-                            Y: list[list[str]],
+                            X: list[Tuple[str]],  # emissions
+                            Y: list[list[str]],  # transitions
                             smoothing: nltk.ProbDistI = nltk.WittenBellProbDist,
                             kwargs: dict = {"bins": 1e5}) -> None:
         self.A = self._get_transitions(Y, smoothing, kwargs)
@@ -35,7 +41,16 @@ class HiddenMarkovModel:
             raise NotImplementedError(
                 "Unknown decoding type. Choose from ['global', 'local']")
 
-    def viterbi(self, observations: list[str]) -> Tuple(list[str], float):
+    def viterbi(self, samples: list[list[str]]):
+        predictions = []
+        best_path_probabilities = []
+        for s in samples:
+            pred, path = self._viterbi(s)
+            predictions.append(pred)
+            best_path_probabilities.append(path)
+        return predictions, best_path_probabilities
+
+    def _viterbi(self, observations: list[str]):  # -> Tuple(list[str], float):
         # method to find a global decoding
         # TODO sort out shapes of A and B
         N = len(self.A)
@@ -45,14 +60,16 @@ class HiddenMarkovModel:
         # initialize
         # state == 0 is <S> and state == N is </S>
         for s in range(1, N-1):  # 1-17
-            V[s, 0] = self.A[0, s] * self.B[s].prob(observations[0])
+            V[s, 0] = np.exp(np.log(self.A[0, s]) +
+                             np.log(self.B[s].prob(observations[0])))
             B[s, 0] = 0
         for t in range(1, T):
             for s in range(1, N-1):
                 # probabilities for each state given the path
-                probs = np.array([0] + [V[s_, t-1] * self.A[s_, s]
+                probs = np.array([0] + [np.exp(np.log(V[s_, t-1]) + np.log(self.A[s_, s]))
                                  for s_ in range(1, N-1)] + [0])
-                V[s, t] = self.B[s].prob(observations[t]) * np.max(probs)
+                V[s, t] = np.exp(np.log(self.B[s].prob(
+                    observations[t])) + np.max(np.log(probs)))
                 B[s, t] = np.argmax(probs)
 
         best_path_probability = np.max(V[:, T-1])
@@ -61,12 +78,11 @@ class HiddenMarkovModel:
         for i in range(T-1, 0, -1):
             best_path.insert(0, B[best_path[0], i])
 
-        predictions = [self._state_map[i] for i in best_path]
-
-        return predictions, best_path_probability
+        prediction = [self._state_map[i] for i in best_path]
+        return prediction, best_path_probability
 
     def _get_transitions(self, Y: list[list[str]], smoothing: nltk.ProbDistI, kwargs: dict) -> np.array:
-        pos_tags = list(set([word for sen in Y for word in sen]))
+        pos_tags = list(set([i for sen in Y for i in sen]))
 
         # Get occureces counts across the sample
         pos_frequencies = {i: nltk.FreqDist()
@@ -88,13 +104,11 @@ class HiddenMarkovModel:
         # return A
         return self._dist_dict_to_array(A)
 
-    def _get_emissions(self, Y: list[list[dict]], smoothing: nltk.ProbDistI, kwargs: dict) -> list[nltk.ProbDistI]:
-        emissions = [(word['upos'], word['lemma'])
-                     for sen in Y for word in sen]
+    def _get_emissions(self, X: list[Tuple[str]], smoothing: nltk.ProbDistI, kwargs: dict) -> list[nltk.ProbDistI]:
 
-        B_dict = {tag: smoothing(nltk.FreqDist([w for (t, w) in emissions if t == tag]),
+        B_dict = {tag: smoothing(nltk.FreqDist([w for (t, w) in X if t == tag]),
                                  **kwargs)
-                  for tag in set([t for (t, _) in emissions])}
+                  for tag in set([t for (t, _) in X])}
 
         B = [0] * len(self._state_map)
         for i, v in self._state_map.items():
@@ -133,14 +147,15 @@ def conllu_corpus(path):
 
 
 if __name__ == "__main__":
-    from conllu import parse_incr
-    train_corpus_path = 'treebanks/UD_English-GUM/en_gum-ud-train.conllu'
-    train_sents = conllu_corpus(train_corpus_path)
+    pass
+    # from conllu import parse_incr
+    # train_corpus_path = 'treebanks/UD_English-GUM/en_gum-ud-train.conllu'
+    # train_sents = conllu_corpus(train_corpus_path)
 
-    m = HiddenMarkovModel()
-    d = m.estimate_parameters(
-        train_sents, [[i['upos'] for i in s] for s in train_sents])
-    m.viterbi(["Don't", "lose", "focus"])
+    # m = HiddenMarkovModel()
+    # d = m.estimate_parameters(
+    #     train_sents, [[i['upos'] for i in s] for s in train_sents])
+    # m.viterbi(["Don't", "lose", "focus"])
 
     # A_counts = self._count_occurences(Y)
     # pos_tags = [i for i in A_counts.keys() if i not in ["<S>", "<\S>"]]
