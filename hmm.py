@@ -5,8 +5,8 @@ import numpy as np
 
 SMOOTHING = {
     "WB": nltk.WittenBellProbDist,
-    "GT": nltk.SimpleGoodTuringProbDist,
-    "KN": nltk.KneserNeyProbDist
+    "GT": nltk.SimpleGoodTuringProbDist
+    # "KN": nltk.KneserNeyProbDist # needs trigram
 }
 
 

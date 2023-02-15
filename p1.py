@@ -28,18 +28,19 @@ def main():
 
     res = {}
 
-    for lang in args['langs']:
+    for l in args['langs']:
+        lang = l.upper()
         # preprocess data
         train, test = preprocessing.get_corpus(lang)
         X, Y = preprocessing.format_corpus(train)
         _, Y_t = preprocessing.format_corpus(test, test=True)
-
-        if args['unk']:
-            Y = preprocessing.replace_unk(Y, lang)
-            Y_t = preprocessing.replace_unk(Y_t, lang)
-
         test_sentences = [[w for (t, w) in sen] for sen in Y_t]
         test_labels = [[t for (t, w) in sen] for sen in Y_t]
+
+        if args['unk']:
+            X, mapping = preprocessing.replace_unk(X, lang)
+            test_sentences = [[mapping[w] if w in mapping.keys(
+            ) else w for w in sen] for sen in test_sentences]
 
         m = hmm.HiddenMarkovModel()
         # train
