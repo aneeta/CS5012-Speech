@@ -1,14 +1,12 @@
-import pandas as pd
+import re
 from typing import Tuple
 
 from conllu import parse_incr
 from conllu.models import Token
-
-import re
-
 from nltk import FreqDist
 
 LANGUAGES = ["EN", "FR", "UK"]
+SUFFIX_LEN = [4, 3, 2]
 
 FILEPATHS = {
     "EN": "treebanks/UD_English-GUM/en_gum",
@@ -18,6 +16,16 @@ FILEPATHS = {
 
 
 def get_corpus(lang: str) -> list:
+    """
+    Utility function to retrieve a chosen language corpus
+    from a conllu file. 
+
+    Args:
+        lang (str): corpus language
+
+    Returns:
+        list: corpus as a list of sentences (list) of words (Tokens)
+    """
     corpus = []  # train and test data
     for i in ['-ud-train.conllu', '-ud-test.conllu']:
         data_file = open(FILEPATHS[lang]+i, 'r', encoding='utf-8')
@@ -57,24 +65,13 @@ def replace_unk(corpus: list[Tuple[str]], lang: str):
 
 
 def unk_tagging_en(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
+    # English
     COMMON_ENDS = {
         2: ["ed", "er", "ly", "ty", "ry", "al", "el", "an", "en", "or", "ic", "se"],
         3: ["ing", "ist", "ate", "ous", "ent", "ect", "eur", "ess", "ery"],
-        4: ["able", "ment", "tion", "tive", "ship", "ness"]
-    },
-
-    unk_copus = [(t, _replace_email(w)) for (t, w) in corpus]
-    hapaxes_map = {i: "UNK" for i in FreqDist(
-        w for (t, w) in unk_copus).hapaxes()}
-    for k in hapaxes_map.keys():
-        hapaxes_map[k] = _replace_proper_name(k)
-        hapaxes_map[k] = _replace_acronym(k)
-        hapaxes_map[k] = _replace_numeric(k)
-        for i in [4, 3, 2]:
-            if k[-i:] in COMMON_ENDS[i]:
-                hapaxes_map[k] = _replace_stem(k, i)
-                break
-    return [(t, _map_word(w, hapaxes_map)) for (t, w) in unk_copus]
+        4: ["able", "ment", "tion", "tive", "ship", "ness", "sion", "ance"]
+    }
+    return _parse_unk(COMMON_ENDS, corpus)
 
     # unk_copus = [(t, _replace_proper_name(w)) for (t,w) in corpus]
     # unk_copus = [(t, _replace_stem(w, len(i))) for (t,w) in unk_copus for i in \
@@ -85,35 +82,59 @@ def unk_tagging_en(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
 
 
 def unk_tagging_fr(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
-    pass
+    # French
+    COMMON_ENDS = {
+        2: ["er", "nt", "re", "on", "ur", "ir"],
+        3: ["ion", "ire", "que", "ant", "ent", "ser", "eur"],
+        4: ["ment", "tion", "aire", "sion", "ance"]
+    }
+    return _parse_unk(COMMON_ENDS, corpus)
 
 
 def unk_tagging_uk(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
-    pass
+    # Ukranian
+    COMMON_ENDS = {
+        2: ["ий", "ти", "ка", "ок"],
+        3: ["ися", "ник",],
+        4: ["вати"]
+    }
+    # hapaxes_map = {i: "UNK" for i in FreqDist(
+    #     w for (t, w) in corpus).hapaxes()}
+    # for k in hapaxes_map.keys():
+    #     for i in SUFFIX_LEN:
+    #         if k[-i:] in COMMON_ENDS[i]:
+    #             hapaxes_map[k] = _replace_stem(k, i)
+    #             break
+    # return [(t, _map_word(w, hapaxes_map)) for (t, w) in corpus], hapaxes_map
+    return _parse_unk(COMMON_ENDS, corpus)
 
 
-def _replace_email(email: str) -> str:
-    return re.sub("[\w]+@([\w]+\.[A-Za-z]+)+", "UNK@UNK", email)
+def _parse_unk(ends, corpus):
+    hapaxes_map = {i: "UNK" for i in FreqDist(
+        w for (t, w) in corpus).hapaxes()}
+    for k in hapaxes_map.keys():
+        # email, e.g. me@sta.ac.uk
+        if re.match("([\w]+[\.-]?)+@([\w]+\.[A-Za-z]+)+", k):
+            hapaxes_map[k] = "UNK@UNK"
+        # acronym, r.g NASA, FBI
+        elif re.match("[A-Z]{2,6}", k):
+            hapaxes_map[k] = "ACRONYM"
+        # numeric, e.g 1871, 2nd
+        elif re.match("\d+(st|nd|rd|th)?", k):
+            hapaxes_map[k] = "NUMERIC"
+        # names, e.g. Johnson, Warwick
+        elif re.match("(([A-Z][a-z]+)-?)?[A-Z][a-z]", k):
+            hapaxes_map[k] = "PROPER_NAME"
+        else:
+            for i in SUFFIX_LEN:
+                if k[-i:] in ends[i]:
+                    hapaxes_map[k] = _replace_stem(k, i)
+                    break
+    return [(t, _map_word(w, hapaxes_map)) for (t, w) in corpus], hapaxes_map
 
 
-def _replace_acronym(name: str) -> str:
-    return re.sub("[A-Z]{2,6}", "UNK@UNK", name)
-
-
-def _replace_proper_name(name: str) -> str:
-    return re.sub("(([A-Z][a-z]+)-?)?[A-Z][a-z]", "PROPERNAME", name)
-
-
-def _replace_numeric(name: str, end: int) -> str:
-    return re.sub("\d+(st|nd|rd|th)?", "NUMERIC", name)
-
-
-def _replace_stem(name: str, end: int) -> str:
-    return "UNK" + name[-end:]
-
-
-def _replace_stem(name: str, end: int) -> str:
-    return "UNK" + name[-end:]
+def _replace_stem(word: str, end: int) -> str:
+    return word[-end:]
 
 
 def _map_word(word: str, map: dict) -> str:
