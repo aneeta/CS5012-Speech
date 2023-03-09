@@ -3,6 +3,8 @@ from typing import Tuple
 import nltk
 import numpy as np
 
+from utils import run_timing
+
 SMOOTHING = {
     "WB": nltk.WittenBellProbDist,
     "GT": nltk.SimpleGoodTuringProbDist
@@ -26,6 +28,7 @@ class HiddenMarkovModel:
 
     # fit
     # TODO extend to n-grams??
+    @run_timing
     def estimate_parameters(self,
                             X: list[Tuple[str]],  # emissions
                             Y: list[list[str]],  # transitions
@@ -34,6 +37,7 @@ class HiddenMarkovModel:
         self.A, self.pi = self._get_transitions(Y, smoothing, kwargs)
         self.B = self._get_emissions(X, smoothing, kwargs)
 
+    @run_timing
     def predict_viterbi(self, samples: list[list[str]]):
         predictions = []
         best_path_probabilities = []

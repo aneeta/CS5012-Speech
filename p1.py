@@ -1,35 +1,29 @@
-import argparse
+import time
+import warnings
 
 import preprocessing
 import hmm
 import evaluation
-
-
-def get_cli_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-l', '--langs',
-        nargs='+',
-        default=preprocessing.LANGUAGES,
-        help="""Choose a language from ${}.""".format(preprocessing.LANGUAGES))
-    parser.add_argument(
-        '-u', '--unk',
-        action='store_true')
-    parser.add_argument(
-        '-s', '--smoothing',
-        default="WB",
-        help="""Choose smoothing method from ${}.""".format(hmm.SMOOTHING))
-    args = parser.parse_args()
-    return vars(args)
+import utils
 
 
 def main():
-    args = get_cli_args()
 
+    # parse command line arguments
+    args = utils.get_cli_args()
+    # warnings
+    if not args['warnings']:
+        warnings.filterwarnings("ignore")  # TODO less general filter
+        # np.seterr(divide='ignore')
+        # warnings.filterwarnings('ignore', module='nltk')
+
+    # results object
     res = {}
 
     for l in args['langs']:
         lang = l.upper()
+        print("Tagged language:", lang)
+
         # preprocess data
         train, test = preprocessing.get_corpus(lang)
         X, Y = preprocessing.format_corpus(train)
@@ -43,12 +37,22 @@ def main():
             ) else w for w in sen] for sen in test_sentences]
 
         m = hmm.HiddenMarkovModel()
+
         # train
         m.estimate_parameters(X, Y, hmm.SMOOTHING[args['smoothing']])
-        # test
-        predictions, best_path_probabilities = m.viterbi(test_sentences[:10])
-        res[lang] = evaluation.evaluate(predictions[:10], test_labels[:10])
-        print(lang, res[lang])
+
+        # predict
+        predictions, _ = m.predict_viterbi(
+            test_sentences)
+
+        # evaluate
+        res[lang] = evaluation.evaluate(
+            lang, predictions, test_labels, args['plot'])
+
+    res_df = utils.format_results(res)
+    print(res_df.to_string())
+    if args['csv']:
+        res_df.to_csv(args['csv'], index=False)
 
 
 if __name__ == "__main__":

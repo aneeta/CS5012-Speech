@@ -5,13 +5,16 @@ from conllu import parse_incr
 from conllu.models import Token
 from nltk import FreqDist
 
-LANGUAGES = ["EN", "FR", "UK"]
+LANGUAGES = ["EN", "FR", "UK", "PL", "HE", "KO"]
 SUFFIX_LEN = [4, 3, 2]
 
 FILEPATHS = {
     "EN": "treebanks/UD_English-GUM/en_gum",
     "FR": "treebanks/UD_French-Rhapsodie/fr_rhapsodie",
-    "UK": "treebanks/UD_Ukrainian-IU/uk_iu"
+    "UK": "treebanks/UD_Ukrainian-IU/uk_iu",
+    "PL": "treebanks/UD_Polish-LFG/pl_lfg",
+    "HE": "treebanks/UD_Hebrew-IAHLTwiki/he_iahltwiki",
+    "KO": "treebanks/UD_Korean-Kaist/ko_kaist"
 }
 
 
@@ -35,6 +38,7 @@ def get_corpus(lang: str) -> list:
 
 
 def prune_sentence(sent) -> list:
+    # Remove contractions such as "isn't".
     return [token for token in sent if type(token['id']) is int]
 
 
@@ -62,6 +66,12 @@ def replace_unk(corpus: list[Tuple[str]], lang: str):
         return unk_tagging_fr(corpus)
     if lang.upper() == "UK":
         return unk_tagging_uk(corpus)
+    if lang.upper() == "PL":
+        return unk_tagging_pl(corpus)
+    if lang.upper() == "HE":
+        return unk_tagging_he(corpus)
+    if lang.upper() == "KO":
+        return unk_tagging_ko(corpus)
 
 
 def unk_tagging_en(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
@@ -71,7 +81,7 @@ def unk_tagging_en(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
         3: ["ing", "ist", "ate", "ous", "ent", "ect", "eur", "ess", "ery"],
         4: ["able", "ment", "tion", "tive", "ship", "ness", "sion", "ance"]
     }
-    return _parse_unk(COMMON_ENDS, corpus)
+    return _parse_unk(corpus, COMMON_ENDS)
 
     # unk_copus = [(t, _replace_proper_name(w)) for (t,w) in corpus]
     # unk_copus = [(t, _replace_stem(w, len(i))) for (t,w) in unk_copus for i in \
@@ -88,7 +98,7 @@ def unk_tagging_fr(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
         3: ["ion", "ire", "que", "ant", "ent", "ser", "eur"],
         4: ["ment", "tion", "aire", "sion", "ance"]
     }
-    return _parse_unk(COMMON_ENDS, corpus)
+    return _parse_unk(corpus, COMMON_ENDS)
 
 
 def unk_tagging_uk(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
@@ -106,10 +116,40 @@ def unk_tagging_uk(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
     #             hapaxes_map[k] = _replace_stem(k, i)
     #             break
     # return [(t, _map_word(w, hapaxes_map)) for (t, w) in corpus], hapaxes_map
-    return _parse_unk(COMMON_ENDS, corpus)
+    return _parse_unk(corpus, COMMON_ENDS)
 
 
-def _parse_unk(ends, corpus):
+def unk_tagging_pl(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
+    # French
+    COMMON_ENDS = {
+        2: ["er", "nt", "re", "on", "ur", "ir"],
+        3: ["ion", "ire", "que", "ant", "ent", "ser", "eur"],
+        4: ["ment", "tion", "aire", "sion", "ance"]
+    }
+    return _parse_unk(corpus)
+
+
+def unk_tagging_he(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
+    # French
+    COMMON_ENDS = {
+        2: ["er", "nt", "re", "on", "ur", "ir"],
+        3: ["ion", "ire", "que", "ant", "ent", "ser", "eur"],
+        4: ["ment", "tion", "aire", "sion", "ance"]
+    }
+    return _parse_unk(corpus)
+
+
+def unk_tagging_ko(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
+    # French
+    COMMON_ENDS = {
+        2: ["er", "nt", "re", "on", "ur", "ir"],
+        3: ["ion", "ire", "que", "ant", "ent", "ser", "eur"],
+        4: ["ment", "tion", "aire", "sion", "ance"]
+    }
+    return _parse_unk(corpus)
+
+
+def _parse_unk(corpus, ends=None):
     hapaxes_map = {i: "UNK" for i in FreqDist(
         w for (t, w) in corpus).hapaxes()}
     for k in hapaxes_map.keys():
@@ -125,7 +165,7 @@ def _parse_unk(ends, corpus):
         # names, e.g. Johnson, Warwick
         elif re.match("(([A-Z][a-z]+)-?)?[A-Z][a-z]", k):
             hapaxes_map[k] = "PROPER_NAME"
-        else:
+        if ends:
             for i in SUFFIX_LEN:
                 if k[-i:] in ends[i]:
                     hapaxes_map[k] = _replace_stem(k, i)
