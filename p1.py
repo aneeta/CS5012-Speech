@@ -12,9 +12,7 @@ def main():
 
     # warnings
     if not args['warnings']:
-        warnings.filterwarnings("ignore")  # TODO less general filter
-        # np.seterr(divide='ignore')
-        # warnings.filterwarnings('ignore', module='nltk')
+        warnings.filterwarnings("ignore")
 
     # results object
     res = {}

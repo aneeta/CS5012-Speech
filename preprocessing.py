@@ -90,7 +90,7 @@ def unk_tagging_fr(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
 def unk_tagging_uk(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
     # Ukranian
     COMMON_ENDS = {
-        2: ["ий", "ти", "ка", "ок", "ія", "ик", "на", "ць", ],
+        2: ["ий", "ти", "ка", "ок", "ія", "ик", "на", "ць"],
         3: ["ися", "ник", "сть", "ння"],
         4: []
     }
@@ -101,7 +101,7 @@ def unk_tagging_pl(corpus: list[Tuple[str]]) -> list[Tuple[str]]:
     # Polish
     COMMON_ENDS = {
         2: ["ać", "ąć", "ić", "eć", "wy", "ść", "yć", "ia", "ki", "ka", "wo"],
-        3: ["cja", "nie",],
+        3: ["cja", "nie"],
         4: []
     }
     return _parse_unk(corpus, COMMON_ENDS)
