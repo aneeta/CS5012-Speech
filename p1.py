@@ -1,4 +1,3 @@
-import time
 import warnings
 
 import preprocessing
@@ -8,9 +7,9 @@ import utils
 
 
 def main():
-
     # parse command line arguments
     args = utils.get_cli_args()
+
     # warnings
     if not args['warnings']:
         warnings.filterwarnings("ignore")  # TODO less general filter
@@ -19,7 +18,7 @@ def main():
 
     # results object
     res = {}
-
+    acc = {}
     for l in args['langs']:
         lang = l.upper()
         print("Tagged language:", lang)
@@ -42,17 +41,18 @@ def main():
         m.estimate_parameters(X, Y, hmm.SMOOTHING[args['smoothing']])
 
         # predict
-        predictions, _ = m.predict_viterbi(
-            test_sentences)
+        predictions, _ = m.predict_viterbi(test_sentences)
 
         # evaluate
-        res[lang] = evaluation.evaluate(
+        res[lang], acc[lang] = evaluation.evaluate(
             lang, predictions, test_labels, args['plot'])
-
+        print("Accuracy:", acc[lang])
     res_df = utils.format_results(res)
-    print(res_df.to_string())
     if args['csv']:
         res_df.to_csv(args['csv'], index=False)
+    print("Accuracies:")
+    print(",".join(acc.keys()))
+    print(",".join([str(i) for i in acc.values()]))
 
 
 if __name__ == "__main__":

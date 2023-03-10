@@ -8,37 +8,48 @@ from utils import run_timing
 SMOOTHING = {
     "WB": nltk.WittenBellProbDist,
     "GT": nltk.SimpleGoodTuringProbDist
-    # "KN": nltk.KneserNeyProbDist # needs trigram
 }
 
 
 class HiddenMarkovModel:
 
-    def __init__(self, A: np.array = None, B: np.array = None, pi: np.array = None, state_map: dict = None) -> None:
-        """_summary_
+    def __init__(self, A: np.array = None, B: list[nltk.ProbDistI] = None, pi: np.array = None, state_map: dict = None) -> None:
 
-        Args:
-            A (np.array, optional): Transition probability matrix. Defaults to None.
-            B (np.array, optional): Emission probability matrix. Defaults to None.
-        """
         self.A = A  # transitions
         self.B = B  # emissions
         self.pi = pi  # initial states
         self._state_map = state_map
 
-    # fit
-    # TODO extend to n-grams??
     @run_timing
     def estimate_parameters(self,
                             X: list[Tuple[str]],  # emissions
                             Y: list[list[str]],  # transitions
                             smoothing: nltk.ProbDistI = nltk.WittenBellProbDist,
                             kwargs: dict = {"bins": 1e5}) -> None:
+        """
+        Function to fit Hidden Markov Model.
+
+        Args:
+            X (list[Tuple[str]]): emissons
+            Y (list[list[str]]): transitions
+            smoothing (nltk.ProbDistI): smoothing function (prevent zero probabilities)
+            kwargs (_type_, optional): _description_. Defaults to {"bins": 1e5}.
+        """
         self.A, self.pi = self._get_transitions(Y, smoothing, kwargs)
         self.B = self._get_emissions(X, smoothing, kwargs)
 
     @run_timing
-    def predict_viterbi(self, samples: list[list[str]]):
+    def predict_viterbi(self, samples: list[list[str]]) -> Tuple[list]:
+        """
+        Function using Viterbi algorithm to predict parts of speech
+        based on a fitted Hidden Markov Model probabilities.
+
+        Args:
+            samples (list[list[str]]): list of sentences (list of tokens)
+
+        Returns:
+            Tuple(list, list): predictions and best_path_probabilities
+        """
         predictions = []
         best_path_probabilities = []
         for s in samples:
@@ -47,7 +58,7 @@ class HiddenMarkovModel:
             best_path_probabilities.append(path)
         return predictions, best_path_probabilities
 
-    def _viterbi(self, observations: list[str]):  # -> Tuple(list[str], float):
+    def _viterbi(self, observations: list[str]) -> Tuple[list]:
         # method to find a global decoding
 
         N, T = len(self.A), len(observations)
@@ -77,7 +88,7 @@ class HiddenMarkovModel:
         prediction = [self._state_map[i] for i in best_path]
         return prediction, best_path_probability
 
-    def _get_transitions(self, Y: list[list[str]], smoothing: nltk.ProbDistI, kwargs: dict) -> np.array:
+    def _get_transitions(self, Y: list[list[str]], smoothing: nltk.ProbDistI, kwargs: dict) -> Tuple[np.array]:
         if not self._state_map:
             self._state_map = {i: v for i, v in enumerate(
                 list(set([i for sen in Y for i in sen])))}
